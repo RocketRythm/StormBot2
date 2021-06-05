@@ -35,8 +35,8 @@ void setup() {
   //setPwmFrequency(rightMotorFirstPin, 8);  // change Timer2 divisor to 8 gives 3.9kHz PWM freq
   enableLeftMotor();
   enableRightMotor();
-  leftMotorSetTargetSpeed(255);
-  rightMotorSetTargetSpeed(255);
+  leftMotorSetTargetSpeed(0);
+  rightMotorSetTargetSpeed(0);
   Serial.println("init complete\n");
   //Serial.begin(9600);
   delay(1000);
@@ -50,25 +50,39 @@ void loop()
   leftMotorCurrentSpeed = adjustLeftMotorSpeed(leftMotorCurrentSpeed,leftMotorTargetSpeed);
   rightMotorCurrentSpeed = adjustRightMotorSpeed(rightMotorCurrentSpeed,rightMotorTargetSpeed);
   printMotorDebug();
-  delay(100);
+  delay(500);
 }
 
 void readMotorTargetSpeeds()
 {
-  uint8_t buffer[32] = "L050R053";
-  int index = 0;
+  //uint8_t buffer[32] = "L050R053";
+  String buffer = "";
+  while (Serial.available() > 0) {
+    buffer += (char)Serial.read();
+  }
+  if (buffer.length() > 0) {
+    Serial.println(buffer);
+  }
+    int index = 0;
   uint8_t state = 0;
   uint8_t speedCharCount = 0;
-  uint8_t left_target_speed = 0;
-  uint8_t right_target_speed = 0;
+  int left_target_speed = 0;
+  int right_target_speed = 0;
+  int signOfSpeed = 1;
   
-  for(index = 0; index < sizeof(buffer); index++)
+  for(index = 0; index < buffer.length(); index++)
   {
     if (state == 'L') {
       if (speedCharCount == 3) {
-        uint8_t digit = (buffer[index] - '0') * 100;
-        left_target_speed = left_target_speed + digit;
-        speedCharCount = 2;
+        if (buffer[index] == '+') {
+          signOfSpeed = 1;
+        } else if (buffer[index] == '-') {
+          signOfSpeed = -1;
+        } else {
+          uint8_t digit = (buffer[index] - '0') * 100;
+          left_target_speed = left_target_speed + digit;
+          speedCharCount = 2;
+        }
       } else if (speedCharCount == 2) {
         uint8_t digit = (buffer[index] - '0') * 10;
         left_target_speed = left_target_speed + digit;
@@ -78,41 +92,53 @@ void readMotorTargetSpeeds()
         left_target_speed = left_target_speed + digit;
         speedCharCount = 0;
         state = 0;
-        leftMotorTargetSpeed = left_target_speed;
+        leftMotorTargetSpeed = left_target_speed * signOfSpeed;
       } else {
         speedCharCount = 0;
         state = 0;
+        signOfSpeed = 1;
       }
     } else if (state == 'R') {
       if (speedCharCount == 3) {
-        uint8_t digit = (buffer[index] - '0') * 100;
-        right_target_speed = left_target_speed + digit;
-        speedCharCount = 2;
+        if (buffer[index] == '+') {
+          signOfSpeed = 1;
+        } else if (buffer[index] == '-') {
+          signOfSpeed = -1;
+        } else {
+          uint8_t digit = (buffer[index] - '0') * 100;
+          right_target_speed = right_target_speed + digit;
+          speedCharCount = 2;
+        }
       } else if (speedCharCount == 2) {
         uint8_t digit = (buffer[index] - '0') * 10;
-        right_target_speed = left_target_speed + digit;
+        right_target_speed = right_target_speed + digit;
         speedCharCount = 1;
       } else if (speedCharCount == 1) {
         uint8_t digit = (buffer[index] - '0');
-        right_target_speed = left_target_speed + digit;
+        right_target_speed = right_target_speed + digit;
         speedCharCount = 0;
         state = 0;
-        rightMotorTargetSpeed = right_target_speed;
+        rightMotorTargetSpeed = right_target_speed * signOfSpeed;
       } else {
         speedCharCount = 0;
         state = 0;
+        signOfSpeed = 1;
       }
     } else if (state == 0) {
       if (buffer[index] == 'L') {
         state = 'L';
         speedCharCount = 3;
+        signOfSpeed = 1;
         left_target_speed = 0;
       } else if (buffer[index] == 'R') {
         state = 'R';
         speedCharCount = 3;
+        signOfSpeed = 1;
+        right_target_speed = 0;
       } else {
         state = 0;
         speedCharCount = 0;
+        signOfSpeed = 1;
       }
     }
   }
