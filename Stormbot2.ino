@@ -2,7 +2,6 @@
 Storm Drain Robot
 Copyright 2021  David Perkinson and Kyle Perkinson
  */
-//#include <Arduino.h>
 
 int leftMotorProtocolId = 9991;
 int leftMotorEnablePin = 8;
@@ -53,7 +52,7 @@ void loop()
   delay(500);
 }
 
-void readMotorTargetSpeeds()
+String readCmdFromSerial()
 {
   //uint8_t buffer[32] = "L050R053";
   String buffer = "";
@@ -63,90 +62,60 @@ void readMotorTargetSpeeds()
   if (buffer.length() > 0) {
     Serial.println(buffer);
   }
-    int index = 0;
-  uint8_t state = 0;
-  uint8_t speedCharCount = 0;
-  int left_target_speed = 0;
-  int right_target_speed = 0;
+  return buffer;
+}
+
+int returnMotorSpeed(String buffer, int start)
+{
+  int index = 0;
+  int targetSpeed = 0;
+  uint8_t offset = 0;
   int signOfSpeed = 1;
+  int multiplier[3] = {100,10,1};
+  
+  for(index = start; index < buffer.length(); index++)
+  {
+    if (buffer[index] == '+') {
+      signOfSpeed = 1;
+    } else if (buffer[index] == '-') {
+      signOfSpeed = -1;
+    } else {
+      uint8_t digit = (buffer[index] - '0') * multiplier[offset];
+      targetSpeed = targetSpeed + digit;
+      offset++;
+    }
+    if (offset > 2) {
+      if (targetSpeed <= 100) {
+        targetSpeed = targetSpeed * signOfSpeed;
+      } else {
+        targetSpeed = 0;
+      }
+      return targetSpeed;
+    }
+  }    
+  if (targetSpeed <= 100) {
+    targetSpeed = targetSpeed * signOfSpeed;
+  } else {
+    targetSpeed = 0;
+  }
+  return targetSpeed;
+}
+
+void readMotorTargetSpeeds()
+{
+  String buffer = readCmdFromSerial();
+  int index = 0;
   
   for(index = 0; index < buffer.length(); index++)
   {
-    if (state == 'L') {
-      if (speedCharCount == 3) {
-        if (buffer[index] == '+') {
-          signOfSpeed = 1;
-        } else if (buffer[index] == '-') {
-          signOfSpeed = -1;
-        } else {
-          uint8_t digit = (buffer[index] - '0') * 100;
-          left_target_speed = left_target_speed + digit;
-          speedCharCount = 2;
-        }
-      } else if (speedCharCount == 2) {
-        uint8_t digit = (buffer[index] - '0') * 10;
-        left_target_speed = left_target_speed + digit;
-        speedCharCount = 1;
-      } else if (speedCharCount == 1) {
-        uint8_t digit = (buffer[index] - '0');
-        left_target_speed = left_target_speed + digit;
-        speedCharCount = 0;
-        state = 0;
-        leftMotorTargetSpeed = left_target_speed * signOfSpeed;
-      } else {
-        speedCharCount = 0;
-        state = 0;
-        signOfSpeed = 1;
-      }
-    } else if (state == 'R') {
-      if (speedCharCount == 3) {
-        if (buffer[index] == '+') {
-          signOfSpeed = 1;
-        } else if (buffer[index] == '-') {
-          signOfSpeed = -1;
-        } else {
-          uint8_t digit = (buffer[index] - '0') * 100;
-          right_target_speed = right_target_speed + digit;
-          speedCharCount = 2;
-        }
-      } else if (speedCharCount == 2) {
-        uint8_t digit = (buffer[index] - '0') * 10;
-        right_target_speed = right_target_speed + digit;
-        speedCharCount = 1;
-      } else if (speedCharCount == 1) {
-        uint8_t digit = (buffer[index] - '0');
-        right_target_speed = right_target_speed + digit;
-        speedCharCount = 0;
-        state = 0;
-        rightMotorTargetSpeed = right_target_speed * signOfSpeed;
-      } else {
-        speedCharCount = 0;
-        state = 0;
-        signOfSpeed = 1;
-      }
-    } else if (state == 0) {
-      if (buffer[index] == 'L') {
-        state = 'L';
-        speedCharCount = 3;
-        signOfSpeed = 1;
-        left_target_speed = 0;
-      } else if (buffer[index] == 'R') {
-        state = 'R';
-        speedCharCount = 3;
-        signOfSpeed = 1;
-        right_target_speed = 0;
-      } else {
-        state = 0;
-        speedCharCount = 0;
-        signOfSpeed = 1;
-      }
+    if (buffer[index] == 'L') {
+      leftMotorTargetSpeed = returnMotorSpeed(buffer,(index + 1));
+    } else if (buffer[index] == 'R') {
+      rightMotorTargetSpeed = returnMotorSpeed(buffer,(index + 1));
     }
   }
-//  Serial.print("left motor target speed ");
-//  Serial.println(left_target_speed);
-//  Serial.print("right motor target speed ");
-//  Serial.println(right_target_speed);
 }
+
 void checkMotorSpeedLimits()
 {
     if ((leftMotorTargetSpeed <= -255) || (leftMotorTargetSpeed > 255))
